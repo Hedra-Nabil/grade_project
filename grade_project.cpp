@@ -1,180 +1,187 @@
-// grade_project.cpp : Defines the entry point for the application.
-//
+﻿#include <Windows.h>
+#include <commctrl.h>   
+#include <wchar.h>
+#include <cstdio> 
 
-#include "framework.h"
-#include "grade_project.h"
+// هذا السطر هو الأهم لتشغيل الألوان (Red/Yellow/Green)
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#pragma comment(lib, "comctl32.lib") 
 
-#define MAX_LOADSTRING 100
+// تعريف المعرفات (IDs)
+#define ID_EDIT_GRADE   1
+#define ID_PROGRESS     2
+#define ID_LBL_STATUS   3
+#define ID_LBL_GPA      4
+#define ID_BTN_REPORT   5  // أعدنا تعريف زر الريبورت
 
-// Global Variables:
-HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+// دالة حساب المعدل التراكمي
+float CalculateGPA(int score) {
+    if (score >= 90) return 4.0f;
+    if (score >= 85) return 3.7f;
+    if (score >= 80) return 3.3f;
+    if (score >= 75) return 3.0f;
+    if (score >= 70) return 2.7f;
+    if (score >= 65) return 2.3f;
+    if (score >= 60) return 2.0f;
+    if (score >= 50) return 1.0f;
+    return 0.0f;
+}
 
-// Forward declarations of functions included in this code module:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+// دالة حساب التقدير النصي
+const wchar_t* GetLetterGrade(int score) {
+    if (score >= 85) return L"Excellent (A)";
+    if (score >= 75) return L"Very Good (B)";
+    if (score >= 65) return L"Good (C)";
+    if (score >= 50) return L"Pass (D)";
+    return L"Fail (F)";
+}
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
+    static HWND hEdit, hProgress, hLabelStatus, hLabelGPA;
 
-    // TODO: Place code here.
-
-    // Initialize global strings
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_GRADEPROJECT, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
-    // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
+    switch (uMsg)
     {
-        return FALSE;
+    case WM_CREATE:
+    {
+        // 1. النصوص والعناوين
+        CreateWindow(L"STATIC", L"Enter Grade:", WS_VISIBLE | WS_CHILD, 20, 20, 100, 20, hwnd, NULL, NULL, NULL);
+
+        // 2. مربع الإدخال
+        hEdit = CreateWindow(
+            L"EDIT", L"",
+            WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER | ES_CENTER,
+            120, 18, 60, 25,
+            hwnd, (HMENU)ID_EDIT_GRADE, NULL, NULL
+        );
+
+        // 3. شريط التقدم (Progress Bar)
+        hProgress = CreateWindow(
+            PROGRESS_CLASS, NULL,
+            WS_VISIBLE | WS_CHILD | PBS_SMOOTH,
+            20, 60, 340, 30,
+            hwnd, (HMENU)ID_PROGRESS, NULL, NULL
+        );
+        SendMessage(hProgress, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
+
+        // 4. نصوص عرض النتائج
+        hLabelStatus = CreateWindow(L"STATIC", L"Status: Waiting", WS_VISIBLE | WS_CHILD, 20, 105, 300, 20, hwnd, (HMENU)ID_LBL_STATUS, NULL, NULL);
+        hLabelGPA = CreateWindow(L"STATIC", L"GPA: 0.0", WS_VISIBLE | WS_CHILD, 20, 130, 300, 20, hwnd, (HMENU)ID_LBL_GPA, NULL, NULL);
+
+        // 5. زر الريبورت (تمت إعادته)
+        CreateWindow(
+            L"BUTTON", L"Get Full Report",
+            WS_VISIBLE | WS_CHILD,
+            100, 160, 150, 30,
+            hwnd, (HMENU)ID_BTN_REPORT, NULL, NULL
+        );
+
+        return 0;
     }
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GRADEPROJECT));
-
-    MSG msg;
-
-    // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
-
-    return (int) msg.wParam;
-}
-
-
-
-//
-//  FUNCTION: MyRegisterClass()
-//
-//  PURPOSE: Registers the window class.
-//
-ATOM MyRegisterClass(HINSTANCE hInstance)
-{
-    WNDCLASSEXW wcex;
-
-    wcex.cbSize = sizeof(WNDCLASSEX);
-
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_GRADEPROJECT));
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_GRADEPROJECT);
-    wcex.lpszClassName  = szWindowClass;
-    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
-    return RegisterClassExW(&wcex);
-}
-
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-{
-   hInst = hInstance; // Store instance handle in our global variable
-
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
-   if (!hWnd)
-   {
-      return FALSE;
-   }
-
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
-
-   return TRUE;
-}
-
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE: Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-//
-//
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
     case WM_COMMAND:
+    {
+        // أولاً: التعامل مع التغيير في مربع النص (Event Driven)
+        if (LOWORD(wParam) == ID_EDIT_GRADE && HIWORD(wParam) == EN_CHANGE)
         {
-            int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
+            wchar_t buffer[10];
+            GetWindowText(hEdit, buffer, 10);
+
+            int grade = (wcslen(buffer) > 0) ? _wtoi(buffer) : 0;
+            if (grade > 100) grade = 100;
+
+            // تحديث الشريط
+            SendMessage(hProgress, PBM_SETPOS, grade, 0);
+
+            // منطق تغيير الألوان (يعتمد على السطر السحري في الأعلى)
+            if (grade < 50)
             {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
+                // راسب -> لون أحمر
+                SendMessage(hProgress, PBM_SETSTATE, PBST_ERROR, 0);
             }
+            else if (grade < 75)
+            {
+                // متوسط -> لون أصفر
+                SendMessage(hProgress, PBM_SETSTATE, PBST_PAUSED, 0);
+            }
+            else
+            {
+                // ممتاز -> لون أخضر
+                SendMessage(hProgress, PBM_SETSTATE, PBST_NORMAL, 0);
+            }
+
+            // تحديث النصوص
+            wchar_t statusText[100];
+            wchar_t gpaText[100];
+            swprintf_s(statusText, L"Status: %s", GetLetterGrade(grade));
+            swprintf_s(gpaText, L"GPA Score: %.1f", CalculateGPA(grade));
+            SetWindowText(hLabelStatus, statusText);
+            SetWindowText(hLabelGPA, gpaText);
         }
-        break;
-    case WM_PAINT:
+
+        // ثانياً: التعامل مع زر الريبورت
+        else if (LOWORD(wParam) == ID_BTN_REPORT)
         {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
+            wchar_t buffer[10];
+            GetWindowText(hEdit, buffer, 10);
+            int grade = (wcslen(buffer) > 0) ? _wtoi(buffer) : 0;
+
+            wchar_t reportMsg[500];
+            swprintf_s(reportMsg,
+                L"--- STUDENT OFFICIAL REPORT ---\n\n"
+                L"Grade: %d / 100\n"
+                L"Rating: %s\n"
+                L"GPA: %.1f\n"
+                L"Result: %s\n\n"
+                L"Keep up the hard work!",
+                grade,
+                GetLetterGrade(grade),
+                CalculateGPA(grade),
+                (grade >= 50) ? L"PASSED" : L"FAILED"
+            );
+
+            MessageBox(hwnd, reportMsg, L"Final Report", MB_OK | MB_ICONINFORMATION);
         }
-        break;
+
+        return 0;
+    }
+
     case WM_DESTROY:
         PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+        return 0;
     }
-    return 0;
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-// Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
+    wchar_t CLASS_NAME[] = L"CompleteGraderApp";
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = CLASS_NAME;
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW); // إضافة مؤشر الماوس العادي
 
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
+    RegisterClass(&wc);
+
+    HWND hwnd = CreateWindowEx(
+        0, CLASS_NAME, L"Student Grading System",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 400, 250,
+        NULL, NULL, hInstance, NULL
+    );
+
+    if (!hwnd) return 0;
+
+    ShowWindow(hwnd, nCmdShow);
+
+    MSG msg = {};
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
-    return (INT_PTR)FALSE;
+    return 0;
 }
